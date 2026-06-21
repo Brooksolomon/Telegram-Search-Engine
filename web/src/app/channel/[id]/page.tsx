@@ -4,6 +4,8 @@ import { getChannel, ApiError } from "@/lib/api";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { ScoreRing, ScoreBar } from "@/components/ScoreBar";
 import { Stat } from "@/components/Stat";
+import { Avatar } from "@/components/Avatar";
+import { SamplePosts } from "@/components/SamplePosts";
 import { formatMembers, relativeTime } from "@/lib/format";
 import type { ChannelDetail } from "@/lib/types";
 
@@ -41,7 +43,7 @@ export default async function ChannelPage({
       {/* Header */}
       <div className="mt-4 panel p-6">
         <div className="flex items-start gap-5">
-          <ScoreRing score={channel.final_score} />
+          <Avatar username={channel.username} title={channel.title} size={64} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight text-fg-bright">
@@ -73,6 +75,7 @@ export default async function ChannelPage({
               <CategoryBadge category={channel.category} />
             </div>
           </div>
+          <ScoreRing score={channel.final_score} />
         </div>
 
         {channel.why_recommended && (
@@ -147,38 +150,7 @@ export default async function ChannelPage({
 
       {/* Sample messages */}
       <div className="mt-4 panel p-5">
-        <div className="mono-label mb-3">sample posts</div>
-        {channel.sample_messages.length === 0 ? (
-          <p className="font-mono text-xs text-muted">{"// no sampled messages"}</p>
-        ) : (
-          <ul className="space-y-2">
-            {channel.sample_messages.map((m) => (
-              <li
-                key={m.tg_message_id}
-                className="rounded border border-border bg-surface-2/40 p-3 text-sm text-fg"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
-                    {m.text ?? (
-                      <span className="text-muted italic">[media post]</span>
-                    )}
-                  </span>
-                  <div className="flex shrink-0 gap-1 font-mono text-[10px] text-muted">
-                    {m.has_image && (
-                      <span className="rounded border border-border px-1">img</span>
-                    )}
-                    {m.has_link && (
-                      <span className="rounded border border-border px-1">link</span>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-1.5 font-mono text-[10px] text-muted/70">
-                  {relativeTime(m.posted_at)}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <SamplePosts messages={channel.sample_messages} />
       </div>
     </div>
   );

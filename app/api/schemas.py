@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 
 class ChannelSummary(BaseModel):
@@ -17,6 +17,12 @@ class ChannelSummary(BaseModel):
     why_recommended: str | None = None
     final_score: float | None = None
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def tg_link(self) -> str | None:
+        """Public link to the channel, if it has a username."""
+        return f"https://t.me/{self.username}" if self.username else None
+
 
 class MessageOut(BaseModel):
     tg_message_id: int
@@ -24,6 +30,17 @@ class MessageOut(BaseModel):
     has_image: bool = False
     has_link: bool = False
     posted_at: datetime | None = None
+    # Set by the API from the parent channel so we can build the permalink.
+    channel_username: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def tg_url(self) -> str | None:
+        """Permalink to this exact post (public channels only). The frontend
+        renders Telegram's official embed from this, which shows the image."""
+        if not self.channel_username:
+            return None
+        return f"https://t.me/{self.channel_username}/{self.tg_message_id}"
 
 
 class ChannelDetail(ChannelSummary):

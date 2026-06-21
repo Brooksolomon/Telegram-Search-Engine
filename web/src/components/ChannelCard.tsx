@@ -3,6 +3,7 @@ import type { ChannelSummary } from "@/lib/types";
 import { formatMembers } from "@/lib/format";
 import { CategoryBadge } from "./CategoryBadge";
 import { ScoreRing } from "./ScoreBar";
+import { Avatar } from "./Avatar";
 
 export function ChannelCard({
   channel,
@@ -17,7 +18,7 @@ export function ChannelCard({
       className="group block animate-fade-up panel p-4 transition-colors hover:border-border-bright hover:bg-surface-2/60"
     >
       <div className="flex items-start gap-4">
-        <ScoreRing score={channel.final_score} />
+        <Avatar username={channel.username} title={channel.title} size={44} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -56,6 +57,8 @@ export function ChannelCard({
             <CategoryBadge category={channel.category} />
           </div>
         </div>
+
+        <ScoreRing score={channel.final_score} />
       </div>
     </Link>
   );

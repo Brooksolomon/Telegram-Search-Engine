@@ -10,6 +10,7 @@ export interface ChannelSummary {
   summary: string | null;
   why_recommended: string | null;
   final_score: number | null;
+  tg_link: string | null;
 }
 
 export interface MessageOut {
@@ -18,6 +19,8 @@ export interface MessageOut {
   has_image: boolean;
   has_link: boolean;
   posted_at: string | null;
+  channel_username: string | null;
+  tg_url: string | null;
 }
 
 export interface ChannelDetail extends ChannelSummary {

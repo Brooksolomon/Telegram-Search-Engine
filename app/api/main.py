@@ -39,7 +39,9 @@ def channel(channel_id: int) -> ChannelDetail:
         raise HTTPException(status_code=404, detail="channel not found")
     msgs = repo.get_channel_messages(channel_id, limit=20)
     detail = ChannelDetail(**row)
-    detail.sample_messages = [MessageOut(**m) for m in msgs]
+    detail.sample_messages = [
+        MessageOut(**m, channel_username=row.get("username")) for m in msgs
+    ]
     return detail
 
 
