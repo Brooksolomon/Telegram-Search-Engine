@@ -16,7 +16,6 @@ INSERT INTO keyword_terms (term, kind, lang) VALUES
     ('python',        'modifier', 'en'),
     ('javascript',    'modifier', 'en'),
     ('rust',          'modifier', 'en'),
-    ('solo',          'modifier', 'en'),
     ('community',     'modifier', 'en'),
     ('founders',      'modifier', 'en')
 ON CONFLICT (term, kind) DO NOTHING;
