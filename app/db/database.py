@@ -43,6 +43,10 @@ def get_pool() -> ConnectionPool:
             settings.database_url,
             min_size=1,
             max_size=5,
+            # Longer acquire timeout so a slow deep-history crawl can't starve
+            # the pool; check_connection revives connections the pooler dropped.
+            timeout=60.0,
+            max_idle=120.0,
             kwargs={"row_factory": dict_row, "prepare_threshold": None},
             configure=_configure,
             check=ConnectionPool.check_connection,

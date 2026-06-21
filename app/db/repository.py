@@ -66,30 +66,41 @@ def channels_needing_analysis(limit: int = 50) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- messages ---
 def insert_messages(channel_id: int, msgs: list[dict[str, Any]]) -> int:
-    """Bulk insert sampled messages; ignores duplicates. Returns inserted count."""
+    """Bulk insert sampled messages; ignores duplicates. Returns inserted count.
+
+    Uses executemany in batches so a deep scan (hundreds/thousands of messages)
+    is a few round-trips, not one per row — keeps the pooled connection from
+    being held long enough to time out."""
     if not msgs:
         return 0
-    inserted = 0
+    params = [
+        (
+            channel_id,
+            m["tg_message_id"],
+            m.get("text"),
+            m.get("has_image", False),
+            m.get("has_link", False),
+            m.get("posted_at"),
+        )
+        for m in msgs
+    ]
+    sql = """
+        INSERT INTO messages
+            (channel_id, tg_message_id, text, has_image, has_link, posted_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (channel_id, tg_message_id) DO NOTHING
+    """
     with get_conn() as conn:
-        for m in msgs:
-            cur = conn.execute(
-                """
-                INSERT INTO messages
-                    (channel_id, tg_message_id, text, has_image, has_link, posted_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (channel_id, tg_message_id) DO NOTHING
-                """,
-                (
-                    channel_id,
-                    m["tg_message_id"],
-                    m.get("text"),
-                    m.get("has_image", False),
-                    m.get("has_link", False),
-                    m.get("posted_at"),
-                ),
-            )
-            inserted += cur.rowcount
-    return inserted
+        before = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s", (channel_id,)
+        ).fetchone()["n"]
+        # executemany batches the round-trips; insert in chunks to bound memory.
+        for i in range(0, len(params), 500):
+            conn.executemany(sql, params[i : i + 500])
+        after = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s", (channel_id,)
+        ).fetchone()["n"]
+    return after - before
 
 
 def get_channel_messages(channel_id: int, limit: int = 50) -> list[dict[str, Any]]:
