@@ -1,0 +1,59 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  /* Loaded via the @import above; system fonts fall back automatically
+     (see tailwind.config.ts fontFamily) if the network is unavailable. */
+  --font-sans: "Inter";
+  --font-mono: "JetBrains Mono";
+}
+
+html,
+body {
+  background: #0a0c10;
+  color: #d7dde6;
+}
+
+/* Subtle grid + scanline texture for the data-tool feel */
+body {
+  background-image:
+    linear-gradient(rgba(34, 42, 54, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 42, 54, 0.35) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-position: -1px -1px;
+}
+
+::selection {
+  background: rgba(61, 220, 151, 0.25);
+  color: #f2f5f9;
+}
+
+/* Thin custom scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2f3a4a transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2f3a4a;
+  border-radius: 4px;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-border bg-surface/80 backdrop-blur-sm;
+  }
+  .mono-label {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-muted;
+  }
+  .focus-ring {
+    @apply outline-none ring-1 ring-transparent focus-visible:ring-accent/60;
+  }
+}
