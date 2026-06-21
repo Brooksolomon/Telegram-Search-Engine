@@ -23,9 +23,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("ingestion.crawl")
 
 
-async def _sample_channel(reader, ch: dict, *, harvest_depth: int | None) -> int:
+async def _sample_channel(
+    reader, ch: dict, *, harvest_depth: int | None, messages_limit: int | None = None
+) -> int:
     """Persist a channel, sample+store its messages, and (if harvest_depth is
     set) enqueue any referenced channels into the frontier at that depth.
+    `messages_limit` overrides how many recent posts to scan (default from config).
     Returns the channel's db id."""
     channel_id = repo.upsert_channel(
         tg_id=ch["tg_id"],
@@ -34,9 +37,8 @@ async def _sample_channel(reader, ch: dict, *, harvest_depth: int | None) -> int
         member_count=ch["member_count"],
         discovered_by_keyword=ch.get("discovered_by_keyword"),
     )
-    raws = await reader.fetch_recent_messages(
-        ch, limit=settings.tg_messages_per_channel
-    )
+    limit = messages_limit if messages_limit is not None else settings.tg_messages_per_channel
+    raws = await reader.fetch_recent_messages(ch, limit=limit)
     cleaned = clean_batch(raws)
     inserted = repo.insert_messages(channel_id, cleaned)
     repo.mark_channel_crawled(channel_id)
@@ -90,10 +92,13 @@ async def crawl(keywords: list[str], *, record_runs: bool = False) -> None:
         await reader.stop()
 
 
-async def crawl_link_graph(max_depth: int, limit: int) -> None:
+async def crawl_link_graph(
+    max_depth: int, limit: int, messages_limit: int | None = None
+) -> None:
     """Drain the frontier: resolve pending candidate channels, sample them, and
     enqueue their references one hop deeper — up to `max_depth`. Bounded by
-    `limit` channels per run and the global throttle."""
+    `limit` channels per run and the global throttle. `messages_limit` overrides
+    how many recent posts to scan per channel (deep history for seeds)."""
     reader = TelegramReader()
     await reader.start()
     try:
@@ -111,7 +116,9 @@ async def crawl_link_graph(max_depth: int, limit: int) -> None:
             # Children go one hop deeper; stop harvesting past max_depth.
             child_depth = cand["depth"] + 1
             harvest = child_depth if child_depth <= max_depth else None
-            await _sample_channel(reader, ch, harvest_depth=harvest)
+            await _sample_channel(
+                reader, ch, harvest_depth=harvest, messages_limit=messages_limit
+            )
             frontier.mark(cand["id"], "done")
 
         s = frontier.stats()
@@ -166,6 +173,9 @@ def main() -> None:
                    help="[--link-graph] max hops from a seed channel")
     p.add_argument("--limit", type=int, default=30,
                    help="[--link-graph] max candidate channels to crawl this run")
+    p.add_argument("--messages", type=int, default=None,
+                   help="posts to scan per channel (overrides TG_MESSAGES_PER_CHANNEL; "
+                        "use a high value like 1000 for deep history on seeds)")
     p.add_argument("--print-session", action="store_true")
     args = p.parse_args()
 
@@ -174,7 +184,9 @@ def main() -> None:
             asyncio.run(print_session())
             return
         if args.link_graph:
-            asyncio.run(crawl_link_graph(args.max_depth, args.limit))
+            asyncio.run(
+                crawl_link_graph(args.max_depth, args.limit, args.messages)
+            )
             return
         if args.from_db:
             asyncio.run(crawl_from_db(args.max_queries, args.min_age_hours))
