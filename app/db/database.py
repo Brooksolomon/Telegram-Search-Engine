@@ -14,9 +14,14 @@ _pool: ConnectionPool | None = None
 
 def _configure(conn) -> None:
     """Run once per new connection: fail fast on lock contention instead of
-    hanging until the server statement_timeout (which strands locks on crash)."""
+    hanging until the server statement_timeout (which strands locks on crash).
+
+    The pool requires this callback to leave the connection OUT of a transaction,
+    so we run the SETs in autocommit and restore the default afterwards."""
+    conn.autocommit = True
     conn.execute("SET lock_timeout = '5s'")
     conn.execute("SET idle_in_transaction_session_timeout = '15s'")
+    conn.autocommit = False
 
 
 def get_pool() -> ConnectionPool:
