@@ -14,7 +14,7 @@ from typing import Any
 
 from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
-from telethon.errors import FloodWaitError, RpcError
+from telethon.errors import FloodWaitError, RPCError
 
 from app.config import settings
 from app.ingestion.throttle import Throttle
@@ -66,7 +66,7 @@ class TelegramReader:
             res = await self._call(
                 self.client(functions.contacts.SearchRequest(q=keyword, limit=limit))
             )
-        except RpcError as e:
+        except RPCError as e:
             log.error("search failed for %r: %s", keyword, e)
             return []
 
@@ -96,7 +96,7 @@ class TelegramReader:
             return []
         try:
             entity = await self._call(self.client.get_entity(entity_ref))
-        except RpcError as e:
+        except RPCError as e:
             log.warning("cannot resolve %r: %s", entity_ref, e)
             return []
 
@@ -117,6 +117,6 @@ class TelegramReader:
             wait = int(e.seconds) + 1
             log.warning("FloodWait during history: sleeping %ss", wait)
             await asyncio.sleep(wait)
-        except RpcError as e:
+        except RPCError as e:
             log.warning("history failed for %r: %s", entity_ref, e)
         return raws
