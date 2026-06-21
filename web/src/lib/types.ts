@@ -40,3 +40,19 @@ export interface CategoryOut {
   category: string;
   channel_count: number;
 }
+
+export interface StatsOut {
+  total_channels: number;
+  analyzed: number;
+  pending_analysis: number;
+  total_messages: number;
+  marketplace: number;
+  spam: number;
+  crawled_24h: number;
+  frontier_pending: number;
+  frontier_done: number;
+  frontier_failed: number;
+  frontier_skipped: number;
+  keywords_tracked: number;
+  categories: CategoryOut[];
+}

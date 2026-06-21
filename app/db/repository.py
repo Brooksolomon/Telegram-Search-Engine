@@ -209,3 +209,95 @@ def list_categories() -> list[dict[str, Any]]:
             ORDER BY channel_count DESC
             """
         ).fetchall()
+
+
+# -------------------------------------------------------------------- stats ---
+def get_stats() -> dict[str, Any]:
+    """Aggregate metrics for the dashboard. Resilient to optional tables
+    (keyword_runs / channel_frontier) not yet existing."""
+    with get_conn() as conn:
+        total_channels = conn.execute(
+            "SELECT COUNT(*) AS n FROM channels"
+        ).fetchone()["n"]
+
+        analyzed = conn.execute(
+            "SELECT COUNT(*) AS n FROM channel_analysis"
+        ).fetchone()["n"]
+
+        total_messages = conn.execute(
+            "SELECT COUNT(*) AS n FROM messages"
+        ).fetchone()["n"]
+
+        # Channels that have messages but no analysis yet.
+        pending_analysis = conn.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM channels c
+            WHERE EXISTS (SELECT 1 FROM messages m WHERE m.channel_id = c.id)
+              AND NOT EXISTS (
+                SELECT 1 FROM channel_analysis a WHERE a.channel_id = c.id
+              )
+            """
+        ).fetchone()["n"]
+
+        marketplace = conn.execute(
+            "SELECT COUNT(*) AS n FROM channel_analysis WHERE is_marketplace"
+        ).fetchone()["n"]
+
+        spam = conn.execute(
+            "SELECT COUNT(*) AS n FROM channel_analysis WHERE category = 'spam'"
+        ).fetchone()["n"]
+
+        # Recently crawled (last 24h).
+        crawled_24h = conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM channels
+            WHERE last_crawled_at > now() - interval '24 hours'
+            """
+        ).fetchone()["n"]
+
+        # Frontier breakdown (optional table).
+        frontier: dict[str, int] = {}
+        if conn.execute("SELECT to_regclass('public.channel_frontier')").fetchone()[
+            "to_regclass"
+        ]:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n FROM channel_frontier GROUP BY status"
+            ).fetchall()
+            frontier = {r["status"]: r["n"] for r in rows}
+
+        # Keyword coverage (optional table).
+        keywords_tracked = 0
+        if conn.execute("SELECT to_regclass('public.keyword_runs')").fetchone()[
+            "to_regclass"
+        ]:
+            keywords_tracked = conn.execute(
+                "SELECT COUNT(*) AS n FROM keyword_runs WHERE last_crawled_at IS NOT NULL"
+            ).fetchone()["n"]
+
+        categories = conn.execute(
+            """
+            SELECT category, COUNT(*) AS channel_count
+            FROM channel_analysis
+            WHERE category IS NOT NULL
+            GROUP BY category
+            ORDER BY channel_count DESC
+            LIMIT 10
+            """
+        ).fetchall()
+
+    return {
+        "total_channels": total_channels,
+        "analyzed": analyzed,
+        "pending_analysis": pending_analysis,
+        "total_messages": total_messages,
+        "marketplace": marketplace,
+        "spam": spam,
+        "crawled_24h": crawled_24h,
+        "frontier_pending": frontier.get("pending", 0),
+        "frontier_done": frontier.get("done", 0),
+        "frontier_failed": frontier.get("failed", 0),
+        "frontier_skipped": frontier.get("skipped", 0),
+        "keywords_tracked": keywords_tracked,
+        "categories": categories,
+    }

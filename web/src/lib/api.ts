@@ -1,7 +1,12 @@
 // Server-side client for the FastAPI backend. Used only inside route handlers
 // and server components — FASTAPI_URL is never shipped to the browser.
 
-import type { ChannelDetail, ChannelSummary, CategoryOut } from "./types";
+import type {
+  ChannelDetail,
+  ChannelSummary,
+  CategoryOut,
+  StatsOut,
+} from "./types";
 
 const BASE = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
@@ -33,6 +38,10 @@ export function getChannel(id: number): Promise<ChannelDetail> {
 
 export function listCategories(): Promise<CategoryOut[]> {
   return get<CategoryOut[]>(`/categories`);
+}
+
+export function getStats(): Promise<StatsOut> {
+  return get<StatsOut>(`/stats`);
 }
 
 export { ApiError };

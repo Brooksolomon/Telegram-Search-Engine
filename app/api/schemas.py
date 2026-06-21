@@ -59,3 +59,19 @@ class ChannelDetail(ChannelSummary):
 class CategoryOut(BaseModel):
     category: str
     channel_count: int
+
+
+class StatsOut(BaseModel):
+    total_channels: int
+    analyzed: int
+    pending_analysis: int
+    total_messages: int
+    marketplace: int
+    spam: int
+    crawled_24h: int
+    frontier_pending: int
+    frontier_done: int
+    frontier_failed: int
+    frontier_skipped: int
+    keywords_tracked: int
+    categories: list[CategoryOut] = []

@@ -12,6 +12,7 @@ from app.api.schemas import (
     ChannelDetail,
     ChannelSummary,
     MessageOut,
+    StatsOut,
 )
 from app.db import repository as repo
 
@@ -48,3 +49,8 @@ def channel(channel_id: int) -> ChannelDetail:
 @app.get("/categories", response_model=list[CategoryOut])
 def categories() -> list[CategoryOut]:
     return [CategoryOut(**r) for r in repo.list_categories()]
+
+
+@app.get("/stats", response_model=StatsOut)
+def stats() -> StatsOut:
+    return StatsOut(**repo.get_stats())
