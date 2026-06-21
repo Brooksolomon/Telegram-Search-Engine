@@ -104,6 +104,33 @@ Edit/extend the term sets in the `keyword_terms` table (kind = `base` or
 `modifier`, `lang` = `en`/`am`/…). More terms = wider coverage, all under the
 same throttle.
 
+**Link-graph crawling (biggest growth lever):**
+
+Telegram's keyword search is capped, but channels constantly link to, mention,
+and forward from each other. The crawler harvests those references — `t.me/…`
+links, `@mentions`, and forwarded-from channels — from every channel it samples
+and queues them in a **frontier** table. A bounded, depth-limited crawl then
+drains that queue, so one seed channel snowballs into many.
+
+Apply the frontier schema once:
+
+```bash
+psql "$DATABASE_URL" -f migrations/003_frontier.sql
+```
+
+Keyword crawls (`--keywords` / `--from-db`) automatically seed the frontier at
+depth 1. Then drain it:
+
+```bash
+python -m app.ingestion.crawl --link-graph --max-depth 2 --limit 30
+```
+
+`--max-depth` caps how many hops from a seed we'll follow (2 is a good start);
+`--limit` caps channels per run. Both keep growth under the global throttle.
+Already-known channels and bot/reserved usernames are filtered out, so the
+frontier only holds genuinely new, valid leads. Run it repeatedly — each pass
+goes wider.
+
 **Analyze (LLM + scoring):**
 
 ```bash

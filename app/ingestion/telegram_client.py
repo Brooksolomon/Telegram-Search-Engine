@@ -22,6 +22,19 @@ from app.ingestion.throttle import Throttle
 log = logging.getLogger("ingestion.telegram")
 
 
+def _forward_username(msg) -> str | None:
+    """Best-effort extraction of the forwarded-from channel's @username."""
+    fwd = getattr(msg, "forward", None)
+    if not fwd:
+        return None
+    chat = getattr(fwd, "chat", None)
+    if chat is not None:
+        uname = getattr(chat, "username", None)
+        if uname:
+            return uname
+    return None
+
+
 class TelegramReader:
     def __init__(self) -> None:
         if settings.tg_allow_join:
@@ -110,6 +123,7 @@ class TelegramReader:
                         "text": msg.message,
                         "has_image": bool(msg.photo) or bool(getattr(msg, "media", None) and msg.photo),
                         "is_forward": bool(msg.forward),
+                        "forward_from_username": _forward_username(msg),
                         "posted_at": msg.date,
                     }
                 )
@@ -120,3 +134,22 @@ class TelegramReader:
         except RPCError as e:
             log.warning("history failed for %r: %s", entity_ref, e)
         return raws
+
+    async def resolve_channel(self, username: str) -> dict[str, Any] | None:
+        """Resolve a username to a channel dict (read-only, no join). Returns
+        None if it isn't a public channel or can't be resolved."""
+        try:
+            entity = await self._call(self.client.get_entity(username))
+        except (RPCError, ValueError) as e:
+            log.info("could not resolve @%s: %s", username, e)
+            return None
+        # Only accept broadcast channels / megagroups, not users or basic groups.
+        if not getattr(entity, "broadcast", False) and not getattr(entity, "megagroup", False):
+            return None
+        return {
+            "tg_id": entity.id,
+            "username": getattr(entity, "username", None),
+            "title": getattr(entity, "title", "") or "",
+            "member_count": getattr(entity, "participants_count", None),
+            "discovered_by_keyword": None,
+        }
