@@ -91,15 +91,20 @@ def insert_messages(channel_id: int, msgs: list[dict[str, Any]]) -> int:
         ON CONFLICT (channel_id, tg_message_id) DO NOTHING
     """
     with get_conn() as conn:
-        before = conn.execute(
-            "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s", (channel_id,)
-        ).fetchone()["n"]
-        # executemany batches the round-trips; insert in chunks to bound memory.
-        for i in range(0, len(params), 500):
-            conn.executemany(sql, params[i : i + 500])
-        after = conn.execute(
-            "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s", (channel_id,)
-        ).fetchone()["n"]
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s",
+                (channel_id,),
+            )
+            before = cur.fetchone()["n"]
+            # executemany batches the round-trips; chunk to bound memory.
+            for i in range(0, len(params), 500):
+                cur.executemany(sql, params[i : i + 500])
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM messages WHERE channel_id = %s",
+                (channel_id,),
+            )
+            after = cur.fetchone()["n"]
     return after - before
 
 
