@@ -31,11 +31,13 @@ def run(limit: int) -> None:
         llm = analyzer.analyze(ch["title"], messages)
 
         activity = scoring.activity_score(messages)
-        member = scoring.member_score(ch.get("member_count"))
         freshness = scoring.freshness_score(messages)
         quality = llm.pop("quality_score")
+        # Influence comes from the graph (PageRank). If metrics have already run
+        # for this channel we reuse it; otherwise it's 0 until `rescore` runs.
+        influence = repo.get_influence_score(ch["id"])
         final = scoring.final_score(
-            activity=activity, member=member, quality=quality, freshness=freshness
+            activity=activity, influence=influence, quality=quality, freshness=freshness
         )
 
         repo.upsert_analysis(
@@ -45,6 +47,7 @@ def run(limit: int) -> None:
                 "activity_score": activity,
                 "quality_score": quality,
                 "freshness_score": freshness,
+                "influence_score": influence,
                 "final_score": final,
             },
         )

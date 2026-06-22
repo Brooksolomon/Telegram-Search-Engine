@@ -89,16 +89,17 @@ export default async function ChannelPage({
         )}
       </div>
 
-      {/* Score breakdown */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-4">
+      {/* Score breakdown — final = quality·40 + activity·30 + influence·20 + freshness·10 */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-5">
         <Stat
           label="final score"
           value={Math.round(channel.final_score ?? 0)}
           accent
         />
-        <Stat label="activity" value={Math.round(channel.activity_score ?? 0)} />
-        <Stat label="quality" value={Math.round(channel.quality_score ?? 0)} />
-        <Stat label="freshness" value={Math.round(channel.freshness_score ?? 0)} />
+        <Stat label="quality ·40%" value={Math.round(channel.quality_score ?? 0)} />
+        <Stat label="activity ·30%" value={Math.round(channel.activity_score ?? 0)} />
+        <Stat label="influence ·20%" value={Math.round(channel.influence_score ?? 0)} />
+        <Stat label="freshness ·10%" value={Math.round(channel.freshness_score ?? 0)} />
       </div>
 
       {/* Summary + meta */}
@@ -121,8 +122,9 @@ export default async function ChannelPage({
           <div>
             <div className="mono-label mb-2">signal breakdown</div>
             <div className="space-y-2">
-              <ScoreBar label="activity" score={channel.activity_score} />
               <ScoreBar label="quality" score={channel.quality_score} />
+              <ScoreBar label="activity" score={channel.activity_score} />
+              <ScoreBar label="influence" score={channel.influence_score} />
               <ScoreBar label="freshness" score={channel.freshness_score} />
             </div>
           </div>

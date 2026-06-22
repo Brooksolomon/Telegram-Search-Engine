@@ -177,12 +177,14 @@ def upsert_analysis(channel_id: int, data: dict[str, Any]) -> None:
             INSERT INTO channel_analysis (
                 channel_id, category, is_marketplace, confidence,
                 summary, tone, typical_content, why_recommended,
-                activity_score, quality_score, freshness_score, final_score,
+                activity_score, quality_score, freshness_score,
+                influence_score, final_score,
                 analyzed_at
             ) VALUES (
                 %(channel_id)s, %(category)s, %(is_marketplace)s, %(confidence)s,
                 %(summary)s, %(tone)s, %(typical_content)s, %(why_recommended)s,
-                %(activity_score)s, %(quality_score)s, %(freshness_score)s, %(final_score)s,
+                %(activity_score)s, %(quality_score)s, %(freshness_score)s,
+                %(influence_score)s, %(final_score)s,
                 now()
             )
             ON CONFLICT (channel_id) DO UPDATE SET
@@ -196,6 +198,7 @@ def upsert_analysis(channel_id: int, data: dict[str, Any]) -> None:
                 activity_score = EXCLUDED.activity_score,
                 quality_score = EXCLUDED.quality_score,
                 freshness_score = EXCLUDED.freshness_score,
+                influence_score = EXCLUDED.influence_score,
                 final_score = EXCLUDED.final_score,
                 analyzed_at = now()
             """,
@@ -364,6 +367,50 @@ def get_stats() -> dict[str, Any]:
         "keywords_tracked": keywords_tracked,
         "categories": categories,
     }
+
+
+# ------------------------------------------------------------------ scoring ---
+def get_influence_score(channel_id: int) -> float:
+    """Current influence (normalized pagerank 0..100) for a channel, or 0 if the
+    graph hasn't been computed yet."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT influence_score FROM channel_analysis WHERE channel_id = %s",
+            (channel_id,),
+        ).fetchone()
+    return float(row["influence_score"]) if row and row["influence_score"] else 0.0
+
+
+def rescore_with_influence() -> int:
+    """Recompute influence_score (from channel_graph pagerank) and final_score
+    for every analyzed channel. Returns number of channels rescored."""
+    with get_conn() as conn:
+        maxpr = conn.execute(
+            "SELECT MAX(pagerank) AS m FROM channel_graph"
+        ).fetchone()["m"] or 0.0
+        # Recompute in SQL: influence = sqrt(pagerank/maxpr)*100, then blend.
+        cur = conn.execute(
+            """
+            UPDATE channel_analysis a
+            SET influence_score = inf.influence,
+                final_score = round((
+                    a.activity_score * 0.30
+                    + inf.influence   * 0.20
+                    + a.quality_score * 0.40
+                    + a.freshness_score * 0.10
+                )::numeric, 1)
+            FROM (
+                SELECT g.channel_id,
+                       CASE WHEN %(maxpr)s > 0
+                            THEN LEAST(1.0, sqrt(g.pagerank / %(maxpr)s)) * 100
+                            ELSE 0 END AS influence
+                FROM channel_graph g
+            ) inf
+            WHERE inf.channel_id = a.channel_id
+            """,
+            {"maxpr": maxpr},
+        )
+        return cur.rowcount
 
 
 # ------------------------------------------------------------------- graph ---

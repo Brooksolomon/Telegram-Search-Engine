@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 
 from app.db import repository as repo
-from app.db.database import close_pool
+from app.db.database import close_pool, get_conn
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("graph.metrics")
@@ -66,6 +66,28 @@ def compute() -> None:
     repo.write_graph_metrics(rows)
     n_clusters = len(set(c for c in clusters.values() if c is not None))
     log.info("wrote metrics for %d channels in %d clusters", len(rows), n_clusters)
+
+    # Now that PageRank is known, refresh influence + final_score for everyone.
+    rescored = repo.rescore_with_influence()
+    log.info("rescored %d channels with graph influence", rescored)
+    _resync_meili()
+
+
+def _resync_meili() -> None:
+    """Push updated scores into Meilisearch so search ranking reflects them."""
+    try:
+        from app.search import meili
+
+        if not meili.is_available():
+            return
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM channel_ranked WHERE final_score IS NOT NULL"
+            ).fetchall()
+        meili.upsert(rows)
+        log.info("resynced %d channels into Meilisearch", len(rows))
+    except Exception as e:  # noqa: BLE001
+        log.warning("Meili resync skipped: %s", e)
 
 
 def _louvain(ug) -> dict[int, int]:

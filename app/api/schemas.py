@@ -81,6 +81,7 @@ class ChannelDetail(ChannelSummary):
     activity_score: float | None = None
     quality_score: float | None = None
     freshness_score: float | None = None
+    influence_score: float | None = None
     discovered_by_keyword: str | None = None
     first_seen_at: datetime | None = None
     last_crawled_at: datetime | None = None

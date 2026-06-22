@@ -55,12 +55,26 @@ def freshness_score(messages: list[dict[str, Any]]) -> float:
 
 
 def final_score(
-    *, activity: float, member: float, quality: float, freshness: float
+    *, activity: float, influence: float, quality: float, freshness: float
 ) -> float:
+    """Blend the four signals. `influence` is normalized PageRank (0..100) —
+    a channel's importance in the reference network — replacing raw member
+    count, which fits the community-graph model and doesn't penalize channels
+    whose member count couldn't be read."""
     blended = (
         activity * 0.30
-        + member * 0.20
+        + influence * 0.20
         + quality * 0.40
         + freshness * 0.10
     )
     return round(blended, 1)
+
+
+def influence_score(pagerank: float, max_pagerank: float) -> float:
+    """Normalize a channel's PageRank to 0..100 (sqrt-scaled so mid-tier
+    channels aren't crushed by a few dominant hubs)."""
+    if not pagerank or not max_pagerank or max_pagerank <= 0:
+        return 0.0
+    import math
+
+    return round(min(1.0, math.sqrt(pagerank / max_pagerank)) * 100, 1)

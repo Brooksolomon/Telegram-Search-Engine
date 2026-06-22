@@ -61,6 +61,7 @@ export interface ChannelDetail extends ChannelSummary {
   activity_score: number | null;
   quality_score: number | null;
   freshness_score: number | null;
+  influence_score: number | null;
   discovered_by_keyword: string | null;
   first_seen_at: string | null;
   last_crawled_at: string | null;
