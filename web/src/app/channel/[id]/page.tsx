@@ -6,6 +6,7 @@ import { ScoreRing, ScoreBar } from "@/components/ScoreBar";
 import { Stat } from "@/components/Stat";
 import { Avatar } from "@/components/Avatar";
 import { SamplePosts } from "@/components/SamplePosts";
+import { ChannelAnalyticsPanel } from "@/components/ChannelAnalytics";
 import { formatMembers, relativeTime } from "@/lib/format";
 import type { ChannelDetail } from "@/lib/types";
 
@@ -147,6 +148,9 @@ export default async function ChannelPage({
           </div>
         </div>
       </div>
+
+      {/* Deep analytics (computed from collected data) */}
+      {channel.analytics && <ChannelAnalyticsPanel a={channel.analytics} />}
 
       {/* Sample messages */}
       <div className="mt-4 panel p-5">

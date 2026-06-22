@@ -43,6 +43,37 @@ class MessageOut(BaseModel):
         return f"https://t.me/{self.channel_username}/{self.tg_message_id}"
 
 
+class TimelinePoint(BaseModel):
+    week: str
+    count: int
+
+
+class ConnectionOut(BaseModel):
+    channel_id: int | None = None
+    title: str | None = None
+    username: str | None = None
+    weight: int
+
+
+class ChannelAnalytics(BaseModel):
+    total_messages: int = 0
+    image_pct: float = 0
+    link_pct: float = 0
+    avg_length: int = 0
+    posts_per_week: float | None = None
+    first_post: datetime | None = None
+    last_post: datetime | None = None
+    top_weekday: int | None = None
+    top_hour: int | None = None
+    timeline: list[TimelinePoint] = []
+    in_degree: int = 0
+    out_degree: int = 0
+    pagerank_rank: int | None = None
+    cluster_id: int | None = None
+    references: list[ConnectionOut] = []
+    referenced_by: list[ConnectionOut] = []
+
+
 class ChannelDetail(ChannelSummary):
     tone: str | None = None
     typical_content: str | None = None
@@ -54,6 +85,7 @@ class ChannelDetail(ChannelSummary):
     first_seen_at: datetime | None = None
     last_crawled_at: datetime | None = None
     sample_messages: list[MessageOut] = []
+    analytics: ChannelAnalytics | None = None
 
 
 class CategoryOut(BaseModel):

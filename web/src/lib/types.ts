@@ -23,6 +23,37 @@ export interface MessageOut {
   tg_url: string | null;
 }
 
+export interface TimelinePoint {
+  week: string;
+  count: number;
+}
+
+export interface ConnectionOut {
+  channel_id: number | null;
+  title: string | null;
+  username: string | null;
+  weight: number;
+}
+
+export interface ChannelAnalytics {
+  total_messages: number;
+  image_pct: number;
+  link_pct: number;
+  avg_length: number;
+  posts_per_week: number | null;
+  first_post: string | null;
+  last_post: string | null;
+  top_weekday: number | null;
+  top_hour: number | null;
+  timeline: TimelinePoint[];
+  in_degree: number;
+  out_degree: number;
+  pagerank_rank: number | null;
+  cluster_id: number | null;
+  references: ConnectionOut[];
+  referenced_by: ConnectionOut[];
+}
+
 export interface ChannelDetail extends ChannelSummary {
   tone: string | null;
   typical_content: string | null;
@@ -34,6 +65,7 @@ export interface ChannelDetail extends ChannelSummary {
   first_seen_at: string | null;
   last_crawled_at: string | null;
   sample_messages: MessageOut[];
+  analytics: ChannelAnalytics | null;
 }
 
 export interface CategoryOut {

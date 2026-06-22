@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 
 from app.api.schemas import (
     CategoryOut,
+    ChannelAnalytics,
     ChannelDetail,
     ChannelSummary,
     ClusterOut,
@@ -18,6 +19,7 @@ from app.api.schemas import (
     StatsOut,
 )
 from app.db import repository as repo
+from app.db import analytics
 
 app = FastAPI(title="Telegram Discovery Engine", version="0.1.0")
 
@@ -46,6 +48,7 @@ def channel(channel_id: int) -> ChannelDetail:
     detail.sample_messages = [
         MessageOut(**m, channel_username=row.get("username")) for m in msgs
     ]
+    detail.analytics = ChannelAnalytics(**analytics.channel_analytics(channel_id))
     return detail
 
 
