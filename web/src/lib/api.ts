@@ -6,6 +6,9 @@ import type {
   ChannelSummary,
   CategoryOut,
   StatsOut,
+  GraphOut,
+  HubOut,
+  ClusterOut,
 } from "./types";
 
 const BASE = process.env.FASTAPI_URL ?? "http://localhost:8000";
@@ -42,6 +45,24 @@ export function listCategories(): Promise<CategoryOut[]> {
 
 export function getStats(): Promise<StatsOut> {
   return get<StatsOut>(`/stats`);
+}
+
+export function getGraph(limit = 250, clusterId?: number): Promise<GraphOut> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (clusterId != null) qs.set("cluster_id", String(clusterId));
+  return get<GraphOut>(`/graph?${qs.toString()}`);
+}
+
+export function getHubs(limit = 20): Promise<HubOut[]> {
+  return get<HubOut[]>(`/graph/hubs?limit=${limit}`);
+}
+
+export function getBridges(limit = 20): Promise<HubOut[]> {
+  return get<HubOut[]>(`/graph/bridges?limit=${limit}`);
+}
+
+export function getClusters(): Promise<ClusterOut[]> {
+  return get<ClusterOut[]>(`/graph/clusters`);
 }
 
 export { ApiError };

@@ -41,6 +41,47 @@ export interface CategoryOut {
   channel_count: number;
 }
 
+export interface GraphNode {
+  id: number;
+  username: string | null;
+  title: string;
+  category: string | null;
+  member_count: number | null;
+  pagerank: number | null;
+  in_degree: number | null;
+  betweenness: number | null;
+  cluster_id: number | null;
+}
+
+export interface GraphEdge {
+  source_id: number;
+  target_id: number;
+  weight: number;
+}
+
+export interface GraphOut {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface HubOut {
+  id: number;
+  username: string | null;
+  title: string;
+  category: string | null;
+  pagerank: number | null;
+  in_degree: number | null;
+  betweenness: number | null;
+  cluster_id: number | null;
+}
+
+export interface ClusterOut {
+  cluster_id: number;
+  size: number;
+  top_category: string | null;
+  top_titles: string[];
+}
+
 export interface StatsOut {
   total_channels: number;
   analyzed: number;

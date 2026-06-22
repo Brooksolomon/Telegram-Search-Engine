@@ -26,6 +26,12 @@ export function TopBar() {
           categories
         </Link>
         <Link
+          href="/graph"
+          className="rounded px-3 py-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-fg-bright"
+        >
+          graph
+        </Link>
+        <Link
           href="/dashboard"
           className="rounded px-3 py-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-fg-bright"
         >

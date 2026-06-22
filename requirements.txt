@@ -8,3 +8,6 @@ httpx>=0.27
 python-dotenv>=1.0
 tenacity>=9.0
 meilisearch>=0.31,<1
+networkx>=3.2
+python-louvain>=0.16
+scipy>=1.11

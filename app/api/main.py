@@ -11,6 +11,9 @@ from app.api.schemas import (
     CategoryOut,
     ChannelDetail,
     ChannelSummary,
+    ClusterOut,
+    GraphOut,
+    HubOut,
     MessageOut,
     StatsOut,
 )
@@ -54,3 +57,27 @@ def categories() -> list[CategoryOut]:
 @app.get("/stats", response_model=StatsOut)
 def stats() -> StatsOut:
     return StatsOut(**repo.get_stats())
+
+
+@app.get("/graph", response_model=GraphOut)
+def graph(
+    limit: int = Query(250, ge=1, le=1000),
+    cluster_id: int | None = Query(None),
+) -> GraphOut:
+    data = repo.graph_nodes_edges(limit=limit, cluster_id=cluster_id)
+    return GraphOut(**data)
+
+
+@app.get("/graph/hubs", response_model=list[HubOut])
+def graph_hubs(limit: int = Query(20, ge=1, le=100)) -> list[HubOut]:
+    return [HubOut(**r) for r in repo.graph_hubs(limit=limit)]
+
+
+@app.get("/graph/bridges", response_model=list[HubOut])
+def graph_bridges(limit: int = Query(20, ge=1, le=100)) -> list[HubOut]:
+    return [HubOut(**r) for r in repo.graph_bridges(limit=limit)]
+
+
+@app.get("/graph/clusters", response_model=list[ClusterOut])
+def graph_clusters() -> list[ClusterOut]:
+    return [ClusterOut(**r) for r in repo.graph_clusters()]

@@ -64,6 +64,53 @@ def channels_needing_analysis(limit: int = 50) -> list[dict[str, Any]]:
         ).fetchall()
 
 
+# ------------------------------------------------------------------- edges ---
+def upsert_edges(
+    source_id: int, edges: dict[tuple[str, str], int]
+) -> int:
+    """Record directed reference edges from source_id. `edges` maps
+    (target_username, edge_type) -> weight. Accumulates weight on repeat crawls,
+    and resolves target_id when the target is a known channel. Returns # edges."""
+    if not edges:
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for (target_username, edge_type), weight in edges.items():
+                cur.execute(
+                    """
+                    INSERT INTO channel_edges
+                        (source_id, target_username, target_id, edge_type, weight)
+                    VALUES (
+                        %(src)s, %(tu)s,
+                        (SELECT id FROM channels WHERE lower(username) = %(tu)s),
+                        %(et)s, %(w)s
+                    )
+                    ON CONFLICT (source_id, target_username, edge_type)
+                    DO UPDATE SET
+                        weight = EXCLUDED.weight,
+                        target_id = COALESCE(channel_edges.target_id, EXCLUDED.target_id)
+                    """,
+                    {"src": source_id, "tu": target_username, "et": edge_type, "w": weight},
+                )
+    return len(edges)
+
+
+def backfill_edge_targets() -> int:
+    """Resolve target_id for edges whose target username is now a known channel.
+    Run before computing graph metrics so newly-crawled channels link up."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            UPDATE channel_edges e
+            SET target_id = c.id
+            FROM channels c
+            WHERE e.target_id IS NULL
+              AND lower(c.username) = lower(e.target_username)
+            """
+        )
+        return cur.rowcount
+
+
 # ---------------------------------------------------------------- messages ---
 def insert_messages(channel_id: int, msgs: list[dict[str, Any]]) -> int:
     """Bulk insert sampled messages; ignores duplicates. Returns inserted count.
@@ -317,3 +364,135 @@ def get_stats() -> dict[str, Any]:
         "keywords_tracked": keywords_tracked,
         "categories": categories,
     }
+
+
+# ------------------------------------------------------------------- graph ---
+def get_edges_for_metrics() -> list[dict[str, Any]]:
+    """All edges between KNOWN channels (target resolved), for metric compute."""
+    with get_conn() as conn:
+        return conn.execute(
+            """
+            SELECT source_id, target_id, SUM(weight) AS weight
+            FROM channel_edges
+            WHERE target_id IS NOT NULL AND target_id <> source_id
+            GROUP BY source_id, target_id
+            """
+        ).fetchall()
+
+
+def all_channel_ids() -> list[int]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT id FROM channels").fetchall()
+    return [r["id"] for r in rows]
+
+
+def write_graph_metrics(rows: list[dict[str, Any]]) -> None:
+    """Upsert per-channel graph metrics."""
+    if not rows:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO channel_graph
+                    (channel_id, in_degree, out_degree, pagerank, betweenness,
+                     cluster_id, computed_at)
+                VALUES (%(id)s, %(in_degree)s, %(out_degree)s, %(pagerank)s,
+                        %(betweenness)s, %(cluster_id)s, now())
+                ON CONFLICT (channel_id) DO UPDATE SET
+                    in_degree = EXCLUDED.in_degree,
+                    out_degree = EXCLUDED.out_degree,
+                    pagerank = EXCLUDED.pagerank,
+                    betweenness = EXCLUDED.betweenness,
+                    cluster_id = EXCLUDED.cluster_id,
+                    computed_at = now()
+                """,
+                rows,
+            )
+
+
+def graph_nodes_edges(
+    limit: int = 300, cluster_id: int | None = None
+) -> dict[str, Any]:
+    """Nodes (top by pagerank) + edges among them, for the viz."""
+    with get_conn() as conn:
+        if cluster_id is not None:
+            nodes = conn.execute(
+                """
+                SELECT * FROM channel_graph_view
+                WHERE cluster_id = %s
+                ORDER BY pagerank DESC NULLS LAST
+                LIMIT %s
+                """,
+                (cluster_id, limit),
+            ).fetchall()
+        else:
+            nodes = conn.execute(
+                """
+                SELECT * FROM channel_graph_view
+                WHERE pagerank IS NOT NULL
+                ORDER BY pagerank DESC NULLS LAST
+                LIMIT %s
+                """,
+                (limit,),
+            ).fetchall()
+        ids = [n["id"] for n in nodes]
+        edges = []
+        if ids:
+            edges = conn.execute(
+                """
+                SELECT source_id, target_id, SUM(weight) AS weight
+                FROM channel_edges
+                WHERE target_id = ANY(%(ids)s) AND source_id = ANY(%(ids)s)
+                  AND target_id <> source_id
+                GROUP BY source_id, target_id
+                """,
+                {"ids": ids},
+            ).fetchall()
+    return {"nodes": nodes, "edges": edges}
+
+
+def graph_hubs(limit: int = 20) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM channel_graph_view
+            WHERE pagerank IS NOT NULL
+            ORDER BY pagerank DESC
+            LIMIT %s
+            """,
+            (limit,),
+        ).fetchall()
+
+
+def graph_bridges(limit: int = 20) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM channel_graph_view
+            WHERE betweenness > 0
+            ORDER BY betweenness DESC
+            LIMIT %s
+            """,
+            (limit,),
+        ).fetchall()
+
+
+def graph_clusters() -> list[dict[str, Any]]:
+    """Cluster summaries: size + dominant category + a few representative titles."""
+    with get_conn() as conn:
+        return conn.execute(
+            """
+            SELECT
+                g.cluster_id,
+                COUNT(*) AS size,
+                MODE() WITHIN GROUP (ORDER BY a.category) AS top_category,
+                (array_agg(c.title ORDER BY g.pagerank DESC))[1:3] AS top_titles
+            FROM channel_graph g
+            JOIN channels c ON c.id = g.channel_id
+            LEFT JOIN channel_analysis a ON a.channel_id = g.channel_id
+            WHERE g.cluster_id IS NOT NULL
+            GROUP BY g.cluster_id
+            ORDER BY size DESC
+            """
+        ).fetchall()

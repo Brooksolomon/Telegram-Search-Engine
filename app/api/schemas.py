@@ -61,6 +61,47 @@ class CategoryOut(BaseModel):
     channel_count: int
 
 
+class GraphNode(BaseModel):
+    id: int
+    username: str | None = None
+    title: str
+    category: str | None = None
+    member_count: int | None = None
+    pagerank: float | None = None
+    in_degree: int | None = None
+    betweenness: float | None = None
+    cluster_id: int | None = None
+
+
+class GraphEdge(BaseModel):
+    source_id: int
+    target_id: int
+    weight: int
+
+
+class GraphOut(BaseModel):
+    nodes: list[GraphNode] = []
+    edges: list[GraphEdge] = []
+
+
+class HubOut(BaseModel):
+    id: int
+    username: str | None = None
+    title: str
+    category: str | None = None
+    pagerank: float | None = None
+    in_degree: int | None = None
+    betweenness: float | None = None
+    cluster_id: int | None = None
+
+
+class ClusterOut(BaseModel):
+    cluster_id: int
+    size: int
+    top_category: str | None = None
+    top_titles: list[str] = []
+
+
 class StatsOut(BaseModel):
     total_channels: int
     analyzed: int

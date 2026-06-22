@@ -16,7 +16,7 @@ from app.db.database import close_pool
 from app.ingestion import frontier
 from app.ingestion import keywords as keywords_repo
 from app.ingestion.cleaning import clean_batch
-from app.ingestion.references import extract_from_messages
+from app.ingestion.references import count_references, extract_from_messages
 from app.ingestion.telegram_client import TelegramReader
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -42,6 +42,11 @@ async def _sample_channel(
     cleaned = clean_batch(raws)
     inserted = repo.insert_messages(channel_id, cleaned)
     repo.mark_channel_crawled(channel_id)
+
+    # Always record graph edges from the RAW messages (weighted), regardless of
+    # harvest_depth — the graph wants every relationship, not just new leads.
+    edge_counts = count_references(raws, self_username=ch.get("username"))
+    repo.upsert_edges(channel_id, edge_counts)
 
     harvested = 0
     if harvest_depth is not None:

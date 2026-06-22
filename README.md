@@ -206,6 +206,38 @@ python -m app.search.reindex
 
 To turn Meili off entirely, leave `MEILI_URL` blank — search uses Postgres.
 
+## Graph layer (community network analysis)
+
+Every reference the crawler harvests (t.me links, @mentions, forwards) is stored
+as a weighted edge in `channel_edges`. A metrics job builds the directed graph
+and computes, per channel: in/out-degree, **PageRank** (influence/hubs),
+**betweenness** (bridges between clusters), and **Louvain community** (cluster).
+
+Apply the schema once:
+
+```bash
+psql "$DATABASE_URL" -f migrations/005_graph.sql
+```
+
+After crawling + analyzing, compute metrics:
+
+```bash
+python -m app.graph.metrics
+```
+
+This resolves edge targets to known channels, runs the algorithms, and writes
+per-channel metrics. Then the frontend `/graph` page shows an interactive
+force-directed network (nodes sized by PageRank, colored by cluster) plus panels
+for top hubs, bridges, and community breakdown. API endpoints:
+
+- `GET /graph` — nodes + edges for the viz (optional `?cluster_id=`)
+- `GET /graph/hubs` — most influential channels
+- `GET /graph/bridges` — channels connecting clusters
+- `GET /graph/clusters` — community summaries
+
+Re-run `python -m app.graph.metrics` whenever you've crawled more — the graph
+gets richer as channels reference each other.
+
 ## Continuous refresh (later)
 
 When channels go stale enough that users notice, schedule the crawl + analysis

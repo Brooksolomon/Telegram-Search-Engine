@@ -82,3 +82,28 @@ def extract_from_messages(
         self_norm = self_username.lstrip("@").lower()
         refs = {r for r in refs if r.username != self_norm}
     return refs
+
+
+def count_references(
+    messages: list[dict],
+    self_username: str | None = None,
+) -> dict[tuple[str, str], int]:
+    """Like extract_from_messages but returns weighted edges:
+    {(target_username, edge_type): occurrence_count}. Used to build the graph."""
+    counts: dict[tuple[str, str], int] = {}
+    self_norm = self_username.lstrip("@").lower() if self_username else None
+
+    def bump(username: str, source: str) -> None:
+        if username == self_norm:
+            return
+        counts[(username, source)] = counts.get((username, source), 0) + 1
+
+    for msg in messages:
+        for r in extract_from_text(msg.get("text")):
+            bump(r.username, r.source)
+        fwd = msg.get("forward_from_username")
+        if fwd:
+            norm = _normalize(fwd)
+            if norm:
+                bump(norm, "forward")
+    return counts
