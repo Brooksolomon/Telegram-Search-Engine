@@ -17,17 +17,23 @@ interface SimNode extends GraphNode {
   r: number;
 }
 
+function clusterColor(c: number | null): string {
+  if (c == null) return "#6b7686";
+  return PALETTE[((c % PALETTE.length) + PALETTE.length) % PALETTE.length];
+}
+
 /**
- * Self-contained force-directed graph on a canvas — no external deps, so it
- * builds anywhere. Nodes sized by PageRank, colored by cluster. Drag to pan,
- * hover for a label, click to open the channel.
+ * Interactive force-directed graph on a canvas — no external deps.
+ * Nodes are channel profile pictures (clipped to circles), sized by PageRank,
+ * ringed in their cluster color. Scroll to zoom, drag background to pan, drag a
+ * node to reposition, hover to highlight its neighbors, click to open.
  */
 export function GraphCanvas({ data }: { data: GraphOut }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<SimNode | null>(null);
 
   useEffect(() => {
-    const canvas: HTMLCanvasElement | null = canvasRef.current;
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const cv: HTMLCanvasElement = canvas;
     const ctx2d = cv.getContext("2d");
@@ -44,160 +50,237 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
       y: H / 2 + Math.sin(i) * (60 + (i % 7) * 28),
       vx: 0,
       vy: 0,
-      r: 4 + Math.sqrt((n.pagerank ?? 0) / maxPr) * 16,
+      r: 7 + Math.sqrt((n.pagerank ?? 0) / maxPr) * 20,
     }));
     const index = new Map(nodes.map((n) => [n.id, n]));
     const links = data.edges
       .map((e) => ({ s: index.get(e.source_id), t: index.get(e.target_id), w: e.weight }))
       .filter((l) => l.s && l.t) as { s: SimNode; t: SimNode; w: number }[];
 
-    // Pan / drag state
-    let offsetX = 0;
-    let offsetY = 0;
-    let dragging = false;
-    let dragStart = { x: 0, y: 0 };
-    let hovered: SimNode | null = null;
-
-    function color(n: SimNode): string {
-      const c = n.cluster_id;
-      return c == null ? "#6b7686" : PALETTE[((c % PALETTE.length) + PALETTE.length) % PALETTE.length];
+    // adjacency for hover-highlight
+    const neighbors = new Map<number, Set<number>>();
+    for (const n of nodes) neighbors.set(n.id, new Set());
+    for (const l of links) {
+      neighbors.get(l.s.id)!.add(l.t.id);
+      neighbors.get(l.t.id)!.add(l.s.id);
     }
 
-    // Simple force simulation
+    // Preload avatar images (clipped into circles at draw time).
+    const avatars = new Map<number, HTMLImageElement>();
+    for (const n of nodes) {
+      if (!n.username) continue;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = `https://t.me/i/userpic/320/${n.username}.jpg`;
+      img.onload = () => avatars.set(n.id, img);
+    }
+
+    // view transform
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    // interaction state
+    let dragNode: SimNode | null = null;
+    let panning = false;
+    let last = { x: 0, y: 0 };
+    let hovered: SimNode | null = null;
+
+    function screenToWorld(mx: number, my: number) {
+      return { x: (mx - offsetX) / scale, y: (my - offsetY) / scale };
+    }
+
     let alpha = 1;
     function tick() {
       alpha *= 0.985;
-      // repulsion
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const a = nodes[i];
           const b = nodes[j];
-          let dx = a.x - b.x;
-          let dy = a.y - b.y;
-          let d2 = dx * dx + dy * dy || 0.01;
-          const f = (1200 / d2) * alpha;
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy || 0.01;
+          const f = (1600 / d2) * alpha;
           const d = Math.sqrt(d2);
           const fx = (dx / d) * f;
           const fy = (dy / d) * f;
-          a.vx += fx;
-          a.vy += fy;
-          b.vx -= fx;
-          b.vy -= fy;
+          a.vx += fx; a.vy += fy;
+          b.vx -= fx; b.vy -= fy;
         }
       }
-      // spring along links
       for (const l of links) {
-        let dx = l.t.x - l.s.x;
-        let dy = l.t.y - l.s.y;
+        const dx = l.t.x - l.s.x;
+        const dy = l.t.y - l.s.y;
         const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-        const f = (d - 70) * 0.01 * alpha;
+        const f = (d - 80) * 0.01 * alpha;
         const fx = (dx / d) * f;
         const fy = (dy / d) * f;
-        l.s.vx += fx;
-        l.s.vy += fy;
-        l.t.vx -= fx;
-        l.t.vy -= fy;
+        l.s.vx += fx; l.s.vy += fy;
+        l.t.vx -= fx; l.t.vy -= fy;
       }
-      // centering + integrate
       for (const n of nodes) {
-        n.vx += (W / 2 - n.x) * 0.0008 * alpha;
-        n.vy += (H / 2 - n.y) * 0.0008 * alpha;
-        n.x += n.vx;
-        n.y += n.vy;
-        n.vx *= 0.86;
-        n.vy *= 0.86;
+        if (n === dragNode) continue;
+        n.vx += (W / 2 - n.x) * 0.0006 * alpha;
+        n.vy += (H / 2 - n.y) * 0.0006 * alpha;
+        n.x += n.vx; n.y += n.vy;
+        n.vx *= 0.86; n.vy *= 0.86;
       }
+    }
+
+    function isActive(n: SimNode): boolean {
+      if (!hovered) return true;
+      return n === hovered || neighbors.get(hovered.id)!.has(n.id);
     }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
       ctx.save();
       ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
 
       // edges
-      ctx.lineWidth = 0.6;
       for (const l of links) {
-        ctx.strokeStyle = "rgba(120,134,150,0.18)";
+        const active = !hovered || l.s === hovered || l.t === hovered;
+        ctx.strokeStyle = active ? "rgba(61,220,151,0.30)" : "rgba(120,134,150,0.10)";
+        ctx.lineWidth = active ? Math.min(2.5, 0.5 + l.w * 0.3) : 0.5;
         ctx.beginPath();
         ctx.moveTo(l.s.x, l.s.y);
         ctx.lineTo(l.t.x, l.t.y);
         ctx.stroke();
       }
+
       // nodes
       for (const n of nodes) {
+        const active = isActive(n);
+        ctx.globalAlpha = active ? 1 : 0.25;
+        const img = avatars.get(n.id);
+        if (img) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(img, n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.fillStyle = clusterColor(n.cluster_id);
+          ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          ctx.fill();
+          // initial letter
+          ctx.fillStyle = "#0a0c10";
+          ctx.font = `${Math.max(8, n.r)}px ui-monospace, monospace`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText((n.title.trim()[0] ?? "?").toUpperCase(), n.x, n.y + 0.5);
+          ctx.textAlign = "start";
+        }
+        // cluster-colored ring
         ctx.beginPath();
-        ctx.fillStyle = color(n);
-        ctx.globalAlpha = hovered && hovered !== n ? 0.35 : 1;
+        ctx.lineWidth = n === hovered ? 3 : 2;
+        ctx.strokeStyle = clusterColor(n.cluster_id);
         ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      // hovered label
-      if (hovered) {
-        ctx.fillStyle = "#f2f5f9";
-        ctx.font = "12px ui-monospace, monospace";
-        ctx.fillText(hovered.title, hovered.x + hovered.r + 4, hovered.y + 4);
+
+      // labels for the most important / hovered nodes
+      ctx.fillStyle = "#d7dde6";
+      ctx.font = "11px ui-monospace, monospace";
+      for (const n of nodes) {
+        if (n === hovered || n.r > 16) {
+          ctx.globalAlpha = isActive(n) ? 1 : 0.3;
+          ctx.fillText(n.title, n.x + n.r + 3, n.y + 3);
+        }
       }
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
 
     let raf = 0;
     function loop() {
-      if (alpha > 0.02) tick();
+      if (alpha > 0.02 || dragNode) tick();
       draw();
       raf = requestAnimationFrame(loop);
     }
     loop();
 
     function nodeAt(mx: number, my: number): SimNode | null {
-      const x = mx - offsetX;
-      const y = my - offsetY;
+      const w = screenToWorld(mx, my);
       for (let i = nodes.length - 1; i >= 0; i--) {
         const n = nodes[i];
-        if ((n.x - x) ** 2 + (n.y - y) ** 2 <= (n.r + 3) ** 2) return n;
+        if ((n.x - w.x) ** 2 + (n.y - w.y) ** 2 <= (n.r + 2) ** 2) return n;
       }
       return null;
     }
 
-    function onMove(ev: MouseEvent) {
+    function pos(ev: MouseEvent) {
       const rect = cv.getBoundingClientRect();
-      const mx = ev.clientX - rect.left;
-      const my = ev.clientY - rect.top;
-      if (dragging) {
-        offsetX += mx - dragStart.x;
-        offsetY += my - dragStart.y;
-        dragStart = { x: mx, y: my };
+      return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+    }
+
+    let downAt = { x: 0, y: 0 };
+    function onDown(ev: MouseEvent) {
+      const p = pos(ev);
+      downAt = p;
+      const n = nodeAt(p.x, p.y);
+      if (n) {
+        dragNode = n;
+        alpha = Math.max(alpha, 0.3);
+      } else {
+        panning = true;
+      }
+      last = p;
+    }
+    function onMove(ev: MouseEvent) {
+      const p = pos(ev);
+      if (dragNode) {
+        const w = screenToWorld(p.x, p.y);
+        dragNode.x = w.x; dragNode.y = w.y;
+        dragNode.vx = 0; dragNode.vy = 0;
         return;
       }
-      hovered = nodeAt(mx, my);
+      if (panning) {
+        offsetX += p.x - last.x;
+        offsetY += p.y - last.y;
+        last = p;
+        return;
+      }
+      hovered = nodeAt(p.x, p.y);
       setHover(hovered);
       cv.style.cursor = hovered ? "pointer" : "grab";
     }
-    function onDown(ev: MouseEvent) {
-      const rect = cv.getBoundingClientRect();
-      const mx = ev.clientX - rect.left;
-      const my = ev.clientY - rect.top;
-      const n = nodeAt(mx, my);
-      if (n) {
-        window.location.href = `/channel/${n.id}`;
-        return;
+    function onUp(ev: MouseEvent) {
+      const p = pos(ev);
+      const moved = Math.hypot(p.x - downAt.x, p.y - downAt.y);
+      if (dragNode && moved < 4) {
+        window.location.href = `/channel/${dragNode.id}`;
       }
-      dragging = true;
-      dragStart = { x: mx, y: my };
+      dragNode = null;
+      panning = false;
     }
-    function onUp() {
-      dragging = false;
+    function onWheel(ev: WheelEvent) {
+      ev.preventDefault();
+      const p = pos(ev);
+      const factor = ev.deltaY < 0 ? 1.1 : 1 / 1.1;
+      const newScale = Math.min(4, Math.max(0.3, scale * factor));
+      // zoom toward cursor
+      offsetX = p.x - (p.x - offsetX) * (newScale / scale);
+      offsetY = p.y - (p.y - offsetY) * (newScale / scale);
+      scale = newScale;
     }
 
-    cv.addEventListener("mousemove", onMove);
     cv.addEventListener("mousedown", onDown);
+    cv.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    cv.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(raf);
-      cv.removeEventListener("mousemove", onMove);
       cv.removeEventListener("mousedown", onDown);
+      cv.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      cv.removeEventListener("wheel", onWheel);
     };
   }, [data]);
 
@@ -205,18 +288,19 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
     <div className="relative">
       <canvas
         ref={canvasRef}
-        className="h-[520px] w-full rounded-lg border border-border bg-surface/40"
+        className="h-[560px] w-full rounded-lg border border-border bg-surface/40"
       />
       <div className="pointer-events-none absolute left-3 top-3 font-mono text-[11px] text-muted">
-        {data.nodes.length} nodes · {data.edges.length} edges · drag to pan ·
-        click a node to open
+        {data.nodes.length} nodes · {data.edges.length} edges · scroll to zoom ·
+        drag to pan / move · click to open
       </div>
       {hover && (
         <div className="pointer-events-none absolute right-3 top-3 panel px-3 py-2">
           <div className="font-mono text-xs text-fg-bright">{hover.title}</div>
           <div className="mt-0.5 font-mono text-[10px] text-muted">
-            pagerank {((hover.pagerank ?? 0) * 1000).toFixed(1)} · in{" "}
-            {hover.in_degree ?? 0} · cluster {hover.cluster_id ?? "—"}
+            {hover.username ? `@${hover.username} · ` : ""}pagerank{" "}
+            {((hover.pagerank ?? 0) * 1000).toFixed(1)} · in {hover.in_degree ?? 0}{" "}
+            · cluster {hover.cluster_id ?? "—"}
           </div>
         </div>
       )}
