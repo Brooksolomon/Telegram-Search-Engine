@@ -70,7 +70,9 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
     for (const n of nodes) {
       if (!n.username) continue;
       const img = new Image();
-      img.crossOrigin = "anonymous";
+      // NOTE: do NOT set crossOrigin — Telegram's userpic endpoint sends no CORS
+      // headers, so a crossOrigin request fails to load. We only drawImage (never
+      // read pixels back), so an un-tainted canvas is fine here.
       img.src = `https://t.me/i/userpic/320/${n.username}.jpg`;
       img.onload = () => avatars.set(n.id, img);
     }
