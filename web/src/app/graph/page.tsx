@@ -48,7 +48,8 @@ export default async function GraphPage() {
   const hasGraph = graph && graph.nodes.length > 0;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    // Break out of the layout's max-width so the graph can use the full viewport.
+    <div className="mx-[calc(50%-50vw)] w-screen px-4 sm:px-6">
       <div className="mb-1 font-mono text-xs text-accent">network</div>
       <h1 className="text-2xl font-semibold tracking-tight text-fg-bright">
         Community Graph
@@ -71,7 +72,7 @@ export default async function GraphPage() {
             <GraphCanvas data={graph!} />
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="mx-auto mt-6 grid max-w-5xl gap-4 md:grid-cols-2">
             <div className="panel p-5">
               <div className="mono-label mb-2">top hubs · most influential</div>
               <div className="space-y-0.5">
@@ -96,7 +97,7 @@ export default async function GraphPage() {
             </div>
           </div>
 
-          <div className="mt-4 panel p-5">
+          <div className="mx-auto mt-4 max-w-5xl panel p-5">
             <div className="mono-label mb-3">communities</div>
             {clusters.length === 0 ? (
               <p className="font-mono text-[11px] text-muted">
