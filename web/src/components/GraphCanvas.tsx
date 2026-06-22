@@ -282,29 +282,58 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
       return { x: ev.clientX - b.left, y: ev.clientY - b.top };
     };
 
+    // Pointer events + setPointerCapture: robust dragging that keeps tracking
+    // even when the cursor leaves the node/canvas, and is React-StrictMode safe
+    // (no shared window listeners that can double-bind across remounts).
     let downAt = { x: 0, y: 0 };
-    function onDown(ev: MouseEvent) {
+    let activePointer: number | null = null;
+
+    function onDown(ev: PointerEvent) {
       const p = rel(ev); downAt = p; last = p;
+      activePointer = ev.pointerId;
+      cv.setPointerCapture(ev.pointerId);
       const n = nodeAt(p.x, p.y);
-      if (n) { dragNode = n; const w = toWorld(p.x, p.y); n.fx = w.x; n.fy = w.y; alpha = Math.max(alpha, 0.4); }
-      else panning = true;
+      if (n) {
+        dragNode = n;
+        const w = toWorld(p.x, p.y);
+        n.fx = w.x; n.fy = w.y;
+        alpha = Math.max(alpha, 0.4);
+        cv.style.cursor = "grabbing";
+      } else {
+        panning = true;
+      }
     }
-    function onMove(ev: MouseEvent) {
+    function onMove(ev: PointerEvent) {
       const p = rel(ev); mouse = p;
-      if (dragNode) { const w = toWorld(p.x, p.y); dragNode.fx = w.x; dragNode.fy = w.y; return; }
-      if (panning) { tx += p.x - last.x; ty += p.y - last.y; last = p; return; }
+      if (dragNode) {
+        const w = toWorld(p.x, p.y);
+        dragNode.fx = w.x; dragNode.fy = w.y;
+        return;
+      }
+      if (panning) {
+        tx += p.x - last.x; ty += p.y - last.y; last = p;
+        return;
+      }
       hovered = nodeAt(p.x, p.y);
       setHover(hovered);
       cv.style.cursor = hovered ? "grab" : "default";
     }
-    function onUp(ev: MouseEvent) {
+    function onUp(ev: PointerEvent) {
       const p = rel(ev);
       const moved = Math.hypot(p.x - downAt.x, p.y - downAt.y);
       if (dragNode) {
-        if (moved < 4) { window.location.href = `/channel/${dragNode.id}`; }
-        else { dragNode.fx = null; dragNode.fy = null; } // release to settle
+        if (moved < 4) {
+          window.location.href = `/channel/${dragNode.id}`;
+        } else {
+          dragNode.fx = null; dragNode.fy = null; // release to settle
+        }
       }
       dragNode = null; panning = false;
+      cv.style.cursor = "default";
+      if (activePointer != null) {
+        try { cv.releasePointerCapture(activePointer); } catch {}
+        activePointer = null;
+      }
     }
     function onWheel(ev: WheelEvent) {
       ev.preventDefault();
@@ -317,9 +346,10 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
     }
     function onDbl() { fit(); }
 
-    cv.addEventListener("mousedown", onDown);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    cv.addEventListener("pointerdown", onDown);
+    cv.addEventListener("pointermove", onMove);
+    cv.addEventListener("pointerup", onUp);
+    cv.addEventListener("pointercancel", onUp);
     cv.addEventListener("wheel", onWheel, { passive: false });
     cv.addEventListener("dblclick", onDbl);
     const ro = new ResizeObserver(resize);
@@ -327,9 +357,10 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
 
     return () => {
       cancelAnimationFrame(raf);
-      cv.removeEventListener("mousedown", onDown);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      cv.removeEventListener("pointerdown", onDown);
+      cv.removeEventListener("pointermove", onMove);
+      cv.removeEventListener("pointerup", onUp);
+      cv.removeEventListener("pointercancel", onUp);
       cv.removeEventListener("wheel", onWheel);
       cv.removeEventListener("dblclick", onDbl);
       ro.disconnect();
@@ -338,7 +369,7 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
 
   return (
     <div ref={wrapRef} className="fixed inset-0 top-[57px] bg-[#0a0c10]">
-      <canvas ref={canvasRef} className="block h-full w-full" />
+      <canvas ref={canvasRef} className="block h-full w-full touch-none" />
 
       {/* Controls overlay */}
       <div className="pointer-events-none absolute inset-0 p-4">
