@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { GraphCanvas } from "./GraphCanvas";
 import { CategoryBadge } from "./CategoryBadge";
+import { LockBodyScroll } from "./LockBodyScroll";
 import { categoryLabel } from "@/lib/format";
 import type { GraphOut, HubOut, ClusterOut } from "@/lib/types";
 
@@ -43,6 +44,7 @@ export function GraphView({
 
   return (
     <>
+      <LockBodyScroll />
       <GraphCanvas data={graph} />
 
       {/* Floating metrics drawer */}

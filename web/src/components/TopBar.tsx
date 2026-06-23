@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StarButton } from "./StarButton";
 
 export function TopBar() {
   return (
@@ -37,6 +38,7 @@ export function TopBar() {
         >
           dashboard
         </Link>
+        <StarButton />
       </nav>
     </header>
   );

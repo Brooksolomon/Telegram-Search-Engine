@@ -368,7 +368,11 @@ export function GraphCanvas({ data }: { data: GraphOut }) {
   }, [data]);
 
   return (
-    <div ref={wrapRef} className="fixed inset-0 top-[57px] bg-[#0a0c10]">
+    <div
+      ref={wrapRef}
+      className="fixed inset-x-0 bottom-0 bg-[#0a0c10]"
+      style={{ top: "var(--chrome-h, 57px)" }}
+    >
       <canvas ref={canvasRef} className="block h-full w-full touch-none" />
 
       {/* Controls overlay */}
