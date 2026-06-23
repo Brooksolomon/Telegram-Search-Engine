@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/categories", label: "categories" },
   { href: "/graph", label: "graph" },
   { href: "/dashboard", label: "dashboard" },
+  { href: "/docs", label: "docs" },
 ];
 
 export function TopBar() {
