@@ -251,8 +251,14 @@ When channels go stale enough that users notice, schedule the crawl + analysis
 on a cron (e.g. every few hours). `channels_needing_analysis` already only
 re-analyzes channels crawled since their last analysis, so re-running is cheap.
 
-## Next steps
+## Documentation
 
-- Thin frontend (search box → ranked results → channel page with the "why" blurb).
-- Add a vendor data-API fallback if you ever hit account bans.
-- Move to a hosted LLM if local throughput becomes the bottleneck.
+- [`DOCS.md`](./DOCS.md) — architecture, data model, full command + API reference
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — dev setup and how to contribute
+- [`DEPLOY.md`](./DEPLOY.md) — single-VPS Docker deploy with automatic HTTPS
+- [`MIGRATE_DB.md`](./MIGRATE_DB.md) — moving data into the bundled Postgres
+- `server-infra/README.md` — hosting multiple projects behind one shared proxy
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE).
