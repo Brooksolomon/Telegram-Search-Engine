@@ -219,7 +219,7 @@ export function DocsContent() {
             <SubSection title="1b. DB-driven Keyword Expansion">
               <Code>{`python -m app.ingestion.crawl --from-db --max-queries 20 --min-age-hours 24`}</Code>
               <p className="text-muted">
-                Generate bases × modifiers, pick due queries (crawled >24h ago), run them, record in keyword_runs. Enables iterative discovery without re-crawling.
+                Generate bases × modifiers, pick due queries (crawled &gt;24h ago), run them, record in keyword_runs. Enables iterative discovery without re-crawling.
               </p>
               <div className="text-xs text-muted">
                 <div>• --max-queries: limit this run (default 20)</div>
